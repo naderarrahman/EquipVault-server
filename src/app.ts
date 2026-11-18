@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import equipmentRoutes from './routes/equipment.routes';
 
 dotenv.config();
 
@@ -27,6 +28,9 @@ app.use(
 );
 
 app.use(express.json());
+
+// Equipment Routes Mount
+app.use('/api/equipment', equipmentRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
