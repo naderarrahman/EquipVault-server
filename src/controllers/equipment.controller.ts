@@ -31,3 +31,23 @@ export const createEquipmentController = async (req: AuthRequest, res: Response)
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+
+export const getMyEquipmentController = async (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDB();
+    const equipmentCollection = db.collection('equipment');
+
+    const ownerId = req.user?._id ? req.user._id.toString() : req.user?.id;
+
+    const equipments = await equipmentCollection.find({ ownerId }).toArray();
+
+    return res.status(200).json({
+      success: true,
+      count: equipments.length,
+      data: equipments,
+    });
+  } catch (error) {
+    console.error('Error in getMyEquipmentController:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
