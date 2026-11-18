@@ -1,6 +1,10 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
+import { Sort } from 'mongodb';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { getDB } from '../config/db';
+
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const createEquipmentController = async (req: AuthRequest, res: Response) => {
   try {
@@ -11,7 +15,7 @@ export const createEquipmentController = async (req: AuthRequest, res: Response)
 
     const newEquipment = {
       ...req.body,
-      status: 'pending', 
+      status: 'pending',
       ownerId,
       ownerName: req.user?.name || 'Verified Owner',
       ownerEmail: req.user?.email || '',
@@ -39,7 +43,10 @@ export const getMyEquipmentController = async (req: AuthRequest, res: Response) 
 
     const ownerId = req.user?._id ? req.user._id.toString() : req.user?.id;
 
-    const equipments = await equipmentCollection.find({ ownerId }).toArray();
+    const equipments = await equipmentCollection
+      .find({ ownerId })
+      .sort({ createdAt: -1 })
+      .toArray();
 
     return res.status(200).json({
       success: true,
@@ -48,6 +55,122 @@ export const getMyEquipmentController = async (req: AuthRequest, res: Response) 
     });
   } catch (error) {
     console.error('Error in getMyEquipmentController:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+export const getAllEquipmentController = async (req: Request, res: Response) => {
+  try {
+    const db = getDB();
+    const equipmentCollection = db.collection('equipment');
+
+    const {
+      search,
+      category,
+      rentalType,
+      minPrice,
+      maxPrice,
+      availability,
+      sort,
+      status,
+    } = req.query;
+
+    const query: Record<string, unknown> = {};
+
+    // Status Filter (Default: approved for public marketplace)
+    if (status === 'all') {
+      // Admin can pass ?status=all to view all statuses
+    } else if (typeof status === 'string' && status.trim()) {
+      query.status = status.trim().toLowerCase();
+    } else {
+      query.status = 'approved';
+    }
+
+    // Search by Equipment Name or Location
+    if (typeof search === 'string' && search.trim()) {
+      const safeKeyword = escapeRegex(search.trim());
+      query.$or = [
+        { name: { $regex: safeKeyword, $options: 'i' } },
+        { location: { $regex: safeKeyword, $options: 'i' } },
+      ];
+    }
+
+    // Filter by Equipment Category
+    if (typeof category === 'string' && category.trim() && category !== 'All') {
+      query.category = category.trim();
+    }
+
+    // Filter by Rental Type (Daily, Weekly, Monthly)
+    if (typeof rentalType === 'string' && rentalType.trim() && rentalType !== 'All') {
+      query.rentalType = {
+        $regex: `^${escapeRegex(rentalType.trim())}$`,
+        $options: 'i',
+      };
+    }
+
+    //  Filter by Price Range (minPrice & maxPrice)
+    const priceFilter: Record<string, number> = {};
+    if (typeof minPrice === 'string' && minPrice.trim() !== '') {
+      const parsedMin = Number(minPrice);
+      if (!Number.isNaN(parsedMin) && parsedMin >= 0) {
+        priceFilter.$gte = parsedMin;
+      }
+    }
+    if (typeof maxPrice === 'string' && maxPrice.trim() !== '') {
+      const parsedMax = Number(maxPrice);
+      if (!Number.isNaN(parsedMax) && parsedMax >= 0) {
+        priceFilter.$lte = parsedMax;
+      }
+    }
+    if (Object.keys(priceFilter).length > 0) {
+      query.rentalPrice = priceFilter;
+    }
+
+    // Filter by Availability (availableQuantity > 0 vs === 0)
+    if (typeof availability === 'string' && availability.trim() && availability !== 'all') {
+      const normalizedAvailability = availability.trim().toLowerCase();
+      if (normalizedAvailability === 'available' || normalizedAvailability === 'true') {
+        query.availableQuantity = { $gt: 0 };
+      } else if (
+        normalizedAvailability === 'unavailable' ||
+        normalizedAvailability === 'false'
+      ) {
+        query.availableQuantity = { $lte: 0 };
+      }
+    }
+
+    // Backend Sorting
+    let sortOption: Sort = { createdAt: -1 }; 
+    if (typeof sort === 'string') {
+      switch (sort.trim().toLowerCase()) {
+        case 'price-asc':
+        case 'low-to-high':
+          sortOption = { rentalPrice: 1, createdAt: -1 };
+          break;
+        case 'price-desc':
+        case 'high-to-low':
+          sortOption = { rentalPrice: -1, createdAt: -1 };
+          break;
+        case 'recent':
+        case 'newest':
+        default:
+          sortOption = { createdAt: -1 };
+          break;
+      }
+    }
+
+    const equipments = await equipmentCollection
+      .find(query)
+      .sort(sortOption)
+      .toArray();
+
+    return res.status(200).json({
+      success: true,
+      count: equipments.length,
+      data: equipments,
+    });
+  } catch (error) {
+    console.error('Error in getAllEquipmentController:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
