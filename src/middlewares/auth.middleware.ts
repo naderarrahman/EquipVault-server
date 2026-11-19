@@ -51,3 +51,17 @@ export const verifyOwner = (req: AuthRequest, res: Response, next: NextFunction)
   }
   next();
 };
+
+export const verifyAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Admin access required.',
+    });
+  }
+  next();
+};
