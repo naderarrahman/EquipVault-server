@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import equipmentRoutes from './routes/equipment.routes';
 import favoriteRoutes from './routes/favorite.routes';
 import bookingRoutes from './routes/booking.routes';
+import paymentRoutes from './routes/payment.routes';
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ app.use(express.json());
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
