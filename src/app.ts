@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import equipmentRoutes from './routes/equipment.routes';
 import favoriteRoutes from './routes/favorite.routes';
+import bookingRoutes from './routes/booking.routes';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use(express.json());
 // Active Routes
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/favorites', favoriteRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({

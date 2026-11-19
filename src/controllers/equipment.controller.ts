@@ -204,3 +204,137 @@ export const getSingleEquipmentController = async (req: Request, res: Response) 
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+
+// 5. Update / Edit Equipment (Owner Only - Own Equipment)
+export const updateEquipmentController = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid equipment ID format.',
+      });
+    }
+
+    const ownerId = req.user?._id ? req.user._id.toString() : req.user?.id;
+    const db = getDB();
+    const equipmentCollection = db.collection('equipment');
+
+    const existingEquipment = await equipmentCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!existingEquipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Equipment not found.',
+      });
+    }
+
+    if (existingEquipment.ownerId !== ownerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only edit your own equipment.',
+      });
+    }
+
+    const {
+      name,
+      description,
+      category,
+      location,
+      rentalPrice,
+      rentalType,
+      availableQuantity,
+      condition,
+      brand,
+      model,
+      image,
+      terms,
+    } = req.body;
+
+    const updateFields: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof name === 'string' && name.trim()) updateFields.name = name.trim();
+    if (typeof description === 'string' && description.trim()) updateFields.description = description.trim();
+    if (typeof category === 'string' && category.trim()) updateFields.category = category.trim();
+    if (typeof location === 'string' && location.trim()) updateFields.location = location.trim();
+    if (rentalPrice !== undefined && !Number.isNaN(Number(rentalPrice))) {
+      updateFields.rentalPrice = Number(rentalPrice);
+    }
+    if (typeof rentalType === 'string' && rentalType.trim()) updateFields.rentalType = rentalType.trim();
+    if (availableQuantity !== undefined && !Number.isNaN(Number(availableQuantity))) {
+      updateFields.availableQuantity = Number(availableQuantity);
+    }
+    if (typeof condition === 'string' && condition.trim()) updateFields.condition = condition.trim();
+    if (typeof brand === 'string' && brand.trim()) updateFields.brand = brand.trim();
+    if (typeof model === 'string' && model.trim()) updateFields.model = model.trim();
+    if (typeof image === 'string' && image.trim()) updateFields.image = image.trim();
+    if (typeof terms === 'string' && terms.trim()) updateFields.terms = terms.trim();
+
+    await equipmentCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateFields }
+    );
+
+    const updatedEquipment = await equipmentCollection.findOne({ _id: new ObjectId(id) });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Equipment updated successfully.',
+      data: updatedEquipment,
+    });
+  } catch (error) {
+    console.error('Error in updateEquipmentController:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// 6. Delete Equipment (Owner Only - Own Equipment)
+export const deleteEquipmentController = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid equipment ID format.',
+      });
+    }
+
+    const ownerId = req.user?._id ? req.user._id.toString() : req.user?.id;
+    const db = getDB();
+    const equipmentCollection = db.collection('equipment');
+
+    const existingEquipment = await equipmentCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!existingEquipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Equipment not found.',
+      });
+    }
+
+    if (existingEquipment.ownerId !== ownerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only delete your own equipment.',
+      });
+    }
+
+    await equipmentCollection.deleteOne({ _id: new ObjectId(id) });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Equipment deleted successfully.',
+    });
+  } catch (error) {
+    console.error('Error in deleteEquipmentController:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
