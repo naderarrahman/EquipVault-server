@@ -8,6 +8,8 @@ import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
+import { notFoundHandler, globalErrorHandler } from './middlewares/error.middleware';
+
 
 
 
@@ -46,6 +48,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 
+app.use(notFoundHandler);
+app.use(globalErrorHandler);
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
