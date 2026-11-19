@@ -6,6 +6,8 @@ import favoriteRoutes from './routes/favorite.routes';
 import bookingRoutes from './routes/booking.routes';
 import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+
 
 dotenv.config();
 
@@ -39,6 +41,7 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({
