@@ -2,6 +2,7 @@ import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import equipmentRoutes from './routes/equipment.routes';
+import favoriteRoutes from './routes/favorite.routes';
 
 dotenv.config();
 
@@ -29,8 +30,9 @@ app.use(
 
 app.use(express.json());
 
-// Equipment Routes Mount
+// Active Routes
 app.use('/api/equipment', equipmentRoutes);
+app.use('/api/favorites', favoriteRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
   res.status(200).json({

@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
-import { Sort } from 'mongodb';
+import { ObjectId, Sort } from 'mongodb';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { getDB } from '../config/db';
 
 const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// 1. Create Equipment (Owner)
 export const createEquipmentController = async (req: AuthRequest, res: Response) => {
   try {
     const db = getDB();
@@ -36,6 +37,7 @@ export const createEquipmentController = async (req: AuthRequest, res: Response)
   }
 };
 
+// 2. Get Logged-in Owner's Equipment (Owner)
 export const getMyEquipmentController = async (req: AuthRequest, res: Response) => {
   try {
     const db = getDB();
@@ -59,6 +61,7 @@ export const getMyEquipmentController = async (req: AuthRequest, res: Response) 
   }
 };
 
+// 3. Get All Equipment with Search, Filter & Sort (Public)
 export const getAllEquipmentController = async (req: Request, res: Response) => {
   try {
     const db = getDB();
@@ -77,16 +80,14 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
 
     const query: Record<string, unknown> = {};
 
-    // Status Filter (Default: approved for public marketplace)
     if (status === 'all') {
-      // Admin can pass ?status=all to view all statuses
+      // Admin can pass ?status=all
     } else if (typeof status === 'string' && status.trim()) {
       query.status = status.trim().toLowerCase();
     } else {
       query.status = 'approved';
     }
 
-    // Search by Equipment Name or Location
     if (typeof search === 'string' && search.trim()) {
       const safeKeyword = escapeRegex(search.trim());
       query.$or = [
@@ -95,12 +96,10 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
       ];
     }
 
-    // Filter by Equipment Category
     if (typeof category === 'string' && category.trim() && category !== 'All') {
       query.category = category.trim();
     }
 
-    // Filter by Rental Type (Daily, Weekly, Monthly)
     if (typeof rentalType === 'string' && rentalType.trim() && rentalType !== 'All') {
       query.rentalType = {
         $regex: `^${escapeRegex(rentalType.trim())}$`,
@@ -108,7 +107,6 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
       };
     }
 
-    //  Filter by Price Range (minPrice & maxPrice)
     const priceFilter: Record<string, number> = {};
     if (typeof minPrice === 'string' && minPrice.trim() !== '') {
       const parsedMin = Number(minPrice);
@@ -126,7 +124,6 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
       query.rentalPrice = priceFilter;
     }
 
-    // Filter by Availability (availableQuantity > 0 vs === 0)
     if (typeof availability === 'string' && availability.trim() && availability !== 'all') {
       const normalizedAvailability = availability.trim().toLowerCase();
       if (normalizedAvailability === 'available' || normalizedAvailability === 'true') {
@@ -139,8 +136,7 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
       }
     }
 
-    // Backend Sorting
-    let sortOption: Sort = { createdAt: -1 }; 
+    let sortOption: Sort = { createdAt: -1 };
     if (typeof sort === 'string') {
       switch (sort.trim().toLowerCase()) {
         case 'price-asc':
@@ -171,6 +167,40 @@ export const getAllEquipmentController = async (req: Request, res: Response) => 
     });
   } catch (error) {
     console.error('Error in getAllEquipmentController:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// 4. Get Single Equipment Details (Private - Logged-in Users)
+export const getSingleEquipmentController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid equipment ID format.',
+      });
+    }
+
+    const db = getDB();
+    const equipment = await db.collection('equipment').findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!equipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Equipment not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: equipment,
+    });
+  } catch (error) {
+    console.error('Error in getSingleEquipmentController:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
