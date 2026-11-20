@@ -1,4 +1,4 @@
-import express, { Application, Request, Response } from 'express';
+import express, { Application, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import equipmentRoutes from './routes/equipment.routes';
@@ -20,15 +20,41 @@ const app: Application = express();
 // Trust Vercel / reverse proxy headers in production
 app.set('trust proxy', 1);
 
+// Restore original API path when rewritten via Vercel /api/index.cjs
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const rawUrl = req.url || req.originalUrl || '';
+  if (
+    rawUrl.startsWith('/api/index.cjs') ||
+    rawUrl.includes('__vercel_path=')
+  ) {
+    const parsedUrl = new URL(rawUrl, 'http://localhost');
+    const originalPath =
+      parsedUrl.searchParams.get('__vercel_path') ??
+      parsedUrl.searchParams.get('path') ??
+      '';
+    parsedUrl.searchParams.delete('__vercel_path');
+    parsedUrl.searchParams.delete('path');
+
+    const remainingQuery = parsedUrl.searchParams.toString();
+    const cleanPath = originalPath.replace(/^\/+/, '');
+    const restoredUrl = `/${cleanPath}${remainingQuery ? `?${remainingQuery}` : ''}`;
+
+    req.url = restoredUrl;
+    req.originalUrl = restoredUrl;
+  }
+  next();
+});
+
 const allowedOrigins: string[] = [
   'http://localhost:3000',
-  process.env.CLIENT_URL || '',
+  (process.env.CLIENT_URL || '').replace(/\/+$/, ''),
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : '';
+      if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -60,7 +86,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 
-// 404 & Global Error Middlewares 
+// 404 & Global Error Middlewares
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 

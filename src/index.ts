@@ -39,12 +39,25 @@ if (process.env.VERCEL !== '1') {
 // Export serverless handler for Vercel
 export default async function handler(req: Request, res: Response) {
   try {
-    if (req.url && req.url.startsWith('/api/index.cjs')) {
-      const parsedUrl = new URL(req.url, 'http://localhost');
-      const originalPath = parsedUrl.searchParams.get('__vercel_path') ?? '';
+    const rawUrl = req.url || req.originalUrl || '';
+    if (
+      rawUrl.startsWith('/api/index.cjs') ||
+      rawUrl.includes('__vercel_path=')
+    ) {
+      const parsedUrl = new URL(rawUrl, 'http://localhost');
+      const originalPath =
+        parsedUrl.searchParams.get('__vercel_path') ??
+        parsedUrl.searchParams.get('path') ??
+        '';
       parsedUrl.searchParams.delete('__vercel_path');
+      parsedUrl.searchParams.delete('path');
+
       const remainingQuery = parsedUrl.searchParams.toString();
-      req.url = `/${originalPath}${remainingQuery ? `?${remainingQuery}` : ''}`;
+      const cleanPath = originalPath.replace(/^\/+/, '');
+      const restoredUrl = `/${cleanPath}${remainingQuery ? `?${remainingQuery}` : ''}`;
+
+      req.url = restoredUrl;
+      req.originalUrl = restoredUrl;
     }
 
     await initializeServer();
