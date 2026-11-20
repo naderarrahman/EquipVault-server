@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Backend REST API for EquipVault Equipment Rental Platform",
   "main": "src/index.ts",
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -25,6 +24,6 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^5.8.3"
   }
 }
