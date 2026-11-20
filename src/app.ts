@@ -1,6 +1,8 @@
 import express, { Application, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { connectToMongoDB } from './config/db';
+import { ensureDatabaseIndexes } from './config/indexes';
 import equipmentRoutes from './routes/equipment.routes';
 import favoriteRoutes from './routes/favorite.routes';
 import bookingRoutes from './routes/booking.routes';
@@ -67,6 +69,31 @@ app.use(
 );
 
 app.use(express.json());
+
+// Ensure MongoDB connection & indexes are ready before handling any route
+let dbInitPromise: Promise<void> | null = null;
+
+const ensureServerReady = (): Promise<void> => {
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      await connectToMongoDB();
+      await ensureDatabaseIndexes();
+    })().catch((err) => {
+      dbInitPromise = null;
+      throw err;
+    });
+  }
+  return dbInitPromise;
+};
+
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  try {
+    await ensureServerReady();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Health Check Route (must stay above notFoundHandler)
 app.get('/', (_req: Request, res: Response) => {
