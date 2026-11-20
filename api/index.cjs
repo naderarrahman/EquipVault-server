@@ -78245,6 +78245,13 @@ if (process.env.VERCEL !== "1") {
 }
 async function handler(req, res) {
   try {
+    if (req.url && req.url.startsWith("/api/index.cjs")) {
+      const parsedUrl = new URL(req.url, "http://localhost");
+      const originalPath = parsedUrl.searchParams.get("__vercel_path") ?? "";
+      parsedUrl.searchParams.delete("__vercel_path");
+      const remainingQuery = parsedUrl.searchParams.toString();
+      req.url = `/${originalPath}${remainingQuery ? `?${remainingQuery}` : ""}`;
+    }
     await initializeServer();
     return app_default(req, res);
   } catch (err) {
