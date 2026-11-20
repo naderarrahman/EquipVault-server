@@ -1,8 +1,9 @@
 import { Response } from 'express';
+import { Filter, ObjectId, Document } from 'mongodb';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { getDB } from '../config/db';
 
-//  Owner Dashboard Overview Analytics
+//  Owner Dashboard Overview Analytics (with 6-Month Earnings Chart)
 export const getOwnerOverviewController = async (
   req: AuthRequest,
   res: Response
@@ -78,6 +79,41 @@ export const getOwnerOverviewController = async (
         .toFixed(2)
     );
 
+    // Build last 6 months earnings & bookings chart data
+    const monthlyEarnings: Array<{
+      month: string;
+      earnings: number;
+      bookings: number;
+    }> = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const target = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = target.getFullYear();
+      const monthIdx = target.getMonth();
+      const label = target.toLocaleDateString('en-US', { month: 'short' });
+
+      const monthEarned = payments
+        .filter((p) => {
+          if (!p.createdAt) return false;
+          const d = new Date(p.createdAt as string | Date);
+          return d.getFullYear() === year && d.getMonth() === monthIdx;
+        })
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+      const monthCount = bookings.filter((b) => {
+        if (!b.createdAt) return false;
+        const d = new Date(b.createdAt as string | Date);
+        return d.getFullYear() === year && d.getMonth() === monthIdx;
+      }).length;
+
+      monthlyEarnings.push({
+        month: label,
+        earnings: Number(monthEarned.toFixed(2)),
+        bookings: monthCount,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -99,6 +135,7 @@ export const getOwnerOverviewController = async (
           pendingValue,
           transactionsCount: payments.length,
         },
+        monthlyEarnings,
         recentBookings: bookings.slice(0, 5),
         recentEquipment: equipments.slice(0, 4),
       },
@@ -196,3 +233,73 @@ export const getCustomerOverviewController = async (
     });
   }
 };
+
+//  Get Logged-in User Contact Info (Phone & Address)
+export const getMyContactProfileController = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.user?._id ? req.user._id.toString() : req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const filter: Filter<Document> = ObjectId.isValid(userId)
+      ? { $or: [{ _id: new ObjectId(userId) }, { id: userId }] }
+      : { id: userId };
+
+    const userDoc = await getDB().collection('user').findOne(filter);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        phone: typeof userDoc?.phone === 'string' ? userDoc.phone : '',
+        address: typeof userDoc?.address === 'string' ? userDoc.address : '',
+      },
+    });
+  } catch (error) {
+    console.error('Error in getMyContactProfileController:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to load contact profile.' });
+  }
+};
+
+//  Update Logged-in User Contact Info (Phone & Address)
+export const updateMyContactProfileController = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.user?._id ? req.user._id.toString() : req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const phone =
+      typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
+    const address =
+      typeof req.body.address === 'string' ? req.body.address.trim() : '';
+
+    const filter: Filter<Document> = ObjectId.isValid(userId)
+      ? { $or: [{ _id: new ObjectId(userId) }, { id: userId }] }
+      : { id: userId };
+
+    await getDB()
+      .collection('user')
+      .updateOne(filter, { $set: { phone, address, updatedAt: new Date() } });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contact information updated.',
+      data: { phone, address },
+    });
+  } catch (error) {
+    console.error('Error in updateMyContactProfileController:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Failed to update contact info.' });
+  }
+};
+

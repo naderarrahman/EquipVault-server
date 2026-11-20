@@ -8,19 +8,22 @@ import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
-import { notFoundHandler, globalErrorHandler } from './middlewares/error.middleware';
-
-
-
+import {
+  notFoundHandler,
+  globalErrorHandler,
+} from './middlewares/error.middleware';
 
 dotenv.config();
 
 const app: Application = express();
 
-const allowedOrigins = [
+// Trust Vercel / reverse proxy headers in production
+app.set('trust proxy', 1);
+
+const allowedOrigins: string[] = [
   'http://localhost:3000',
-  process.env.CLIENT_URL,
-].filter(Boolean) as string[];
+  process.env.CLIENT_URL || '',
+].filter(Boolean);
 
 app.use(
   cors({
@@ -39,7 +42,16 @@ app.use(
 
 app.use(express.json());
 
-// Active Routes
+// Health Check Route (must stay above notFoundHandler)
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    message: 'EquipVault Server is running smoothly!',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Active API Routes
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/bookings', bookingRoutes);
@@ -48,14 +60,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 
+// 404 & Global Error Middlewares 
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
-app.get('/', (_req: Request, res: Response) => {
-  res.status(200).json({
-    success: true,
-    message: 'EquipVault Server is running smoothly!',
-    timestamp: new Date().toISOString(),
-  });
-});
 
 export default app;

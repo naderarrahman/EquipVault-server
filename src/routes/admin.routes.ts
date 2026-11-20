@@ -9,6 +9,8 @@ import {
   updateEquipmentStatusAdminController,
   getAllBookingsAdminController,
   getAllPaymentsAdminController,
+  updateEquipmentAdminController,
+  deleteEquipmentAdminController,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -30,5 +32,10 @@ router.patch('/equipment/:id/status', updateEquipmentStatusAdminController);
 // Bookings & Payments Monitoring
 router.get('/bookings', getAllBookingsAdminController);
 router.get('/payments', getAllPaymentsAdminController);
+
+
+
+router.patch('/equipment/:id', updateEquipmentAdminController);
+router.delete('/equipment/:id', deleteEquipmentAdminController);
 
 export default router;

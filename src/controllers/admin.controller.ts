@@ -10,7 +10,7 @@ const buildUserFilter = (id: string): Filter<Document> => {
   return { id };
 };
 
-//  Admin Dashboard Overview Stats
+//  Admin Dashboard Overview Stats (with 6-Month Chart Data)
 export const getAdminStatsController = async (
   _req: AuthRequest,
   res: Response
@@ -31,6 +31,7 @@ export const getAdminStatsController = async (
       approvedEquipment,
       totalBookings,
       activeBookings,
+      allBookings,
       payments,
     ] = await Promise.all([
       userCollection.countDocuments(),
@@ -41,6 +42,7 @@ export const getAdminStatsController = async (
       equipmentCollection.countDocuments({ status: 'approved' }),
       bookingsCollection.countDocuments(),
       bookingsCollection.countDocuments({ bookingStatus: 'approved' }),
+      bookingsCollection.find({}).toArray(),
       paymentsCollection.find({ status: 'succeeded' }).toArray(),
     ]);
 
@@ -49,6 +51,41 @@ export const getAdminStatsController = async (
         .reduce((sum, item) => sum + Number(item.amount || 0), 0)
         .toFixed(2)
     );
+
+    // Build last 6 months chart statistics
+    const monthlyStats: Array<{
+      month: string;
+      bookings: number;
+      revenue: number;
+    }> = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const target = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = target.getFullYear();
+      const monthIdx = target.getMonth();
+      const label = target.toLocaleDateString('en-US', { month: 'short' });
+
+      const monthBookings = allBookings.filter((b) => {
+        if (!b.createdAt) return false;
+        const d = new Date(b.createdAt as string | Date);
+        return d.getFullYear() === year && d.getMonth() === monthIdx;
+      });
+
+      const monthRevenue = payments
+        .filter((p) => {
+          if (!p.createdAt) return false;
+          const d = new Date(p.createdAt as string | Date);
+          return d.getFullYear() === year && d.getMonth() === monthIdx;
+        })
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+      monthlyStats.push({
+        month: label,
+        bookings: monthBookings.length,
+        revenue: Number(monthRevenue.toFixed(2)),
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -71,6 +108,7 @@ export const getAdminStatsController = async (
           total: totalRevenue,
           transactionsCount: payments.length,
         },
+        monthlyStats,
       },
     });
   } catch (error) {
@@ -215,7 +253,7 @@ export const deleteUserController = async (req: AuthRequest, res: Response) => {
   }
 };
 
-//  Get All Equipment for Moderation (Pending, Approved, Rejected)
+// Get All Equipment for Moderation
 export const getAllEquipmentAdminController = async (
   _req: AuthRequest,
   res: Response
@@ -293,7 +331,112 @@ export const updateEquipmentStatusAdminController = async (
   }
 };
 
-// Get All Platform Bookings
+//  Admin Update Equipment Listing Details
+export const updateEquipmentAdminController = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { id } = req.params;
+    if (typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid equipment ID.' });
+    }
+
+    const {
+      name,
+      category,
+      location,
+      rentalPrice,
+      rentalType,
+      availableQuantity,
+      status,
+    } = req.body;
+
+    const updateFields: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (typeof name === 'string' && name.trim()) updateFields.name = name.trim();
+    if (typeof category === 'string' && category.trim())
+      updateFields.category = category.trim();
+    if (typeof location === 'string' && location.trim())
+      updateFields.location = location.trim();
+    if (rentalPrice !== undefined && !Number.isNaN(Number(rentalPrice)))
+      updateFields.rentalPrice = Number(rentalPrice);
+    if (typeof rentalType === 'string' && rentalType.trim())
+      updateFields.rentalType = rentalType.trim();
+    if (
+      availableQuantity !== undefined &&
+      !Number.isNaN(Number(availableQuantity))
+    )
+      updateFields.availableQuantity = Number(availableQuantity);
+    if (
+      typeof status === 'string' &&
+      ['pending', 'approved', 'rejected'].includes(status)
+    ) {
+      updateFields.status = status;
+    }
+
+    const db = getDB();
+    const result = await db
+      .collection('equipment')
+      .updateOne({ _id: new ObjectId(id) }, { $set: updateFields });
+
+    if (result.matchedCount === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Equipment not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Equipment updated successfully by admin.',
+    });
+  } catch (error) {
+    console.error('Error in updateEquipmentAdminController:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error' });
+  }
+};
+
+//  Admin Delete Equipment Listing
+export const deleteEquipmentAdminController = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { id } = req.params;
+    if (typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid equipment ID.' });
+    }
+
+    const db = getDB();
+    const result = await db
+      .collection('equipment')
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Equipment not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Equipment listing deleted permanently.',
+    });
+  } catch (error) {
+    console.error('Error in deleteEquipmentAdminController:', error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error' });
+  }
+};
+
+//  Get All Platform Bookings
 export const getAllBookingsAdminController = async (
   _req: AuthRequest,
   res: Response
@@ -319,7 +462,7 @@ export const getAllBookingsAdminController = async (
   }
 };
 
-// Get All Platform Stripe Payment Transactions
+//  Get All Platform Stripe Payment Transactions
 export const getAllPaymentsAdminController = async (
   _req: AuthRequest,
   res: Response
